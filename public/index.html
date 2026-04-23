@@ -106,7 +106,8 @@
         <h1> Personal Information Verification Form</h1>
     </div>
     <div class="container">
-        <form id="infoForm" action="/api/submit" method="POST" enctype="multipart/form-data">
+        <form id="infoForm">
+            <div class="section">
                 <h2>Personal Details</h2>
                 <label for="fullName">Full Name (as it appears on official documents):</label>
                 <input type="text" id="fullName" name="fullName" required pattern="[A-Za-z\s]+" title="Only letters and spaces allowed">
@@ -157,27 +158,56 @@
     </div>
 
     <script>
-        document.getElementById('infoForm').addEventListener('submit', function(e) {
+        // Get the backend API URL from environment or use default
+        const API_URL = window.location.origin === 'http://localhost:3000' 
+            ? 'http://localhost:3000'
+            : 'https://your-render-backend.onrender.com'; // Replace with your Render backend URL
+
+        const form = document.getElementById('infoForm');
+
+        // Format phone number
+        function formatPhoneNumber(value) {
+            let cleaned = value.replace(/\D/g, '');
+            if (cleaned.length >= 10) {
+                cleaned = cleaned.slice(0, 10);
+                return `(${cleaned.slice(0,3)}) ${cleaned.slice(3,6)}-${cleaned.slice(6)}`;
+            }
+            return value;
+        }
+
+        // Format SSN
+        function formatSSN(value) {
+            let cleaned = value.replace(/\D/g, '');
+            if (cleaned.length >= 9) {
+                cleaned = cleaned.slice(0, 9);
+                return `${cleaned.slice(0,3)}-${cleaned.slice(3,5)}-${cleaned.slice(5)}`;
+            }
+            return value;
+        }
+
+        // Auto-format phone number
+        document.getElementById('phoneNumber').addEventListener('input', function(e) {
+            e.target.value = formatPhoneNumber(e.target.value);
+        });
+
+        // Auto-format SSN
+        document.getElementById('ssn').addEventListener('input', function(e) {
+            e.target.value = formatSSN(e.target.value);
+        });
+
+        // Handle form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
             const phone = document.getElementById('phoneNumber');
             const ssn = document.getElementById('ssn');
             const dob = document.getElementById('dateOfBirth');
-
-            // Format phone number
-            if (phone.value && !phone.value.match(/\(\d{3}\) \d{3}-\d{4}/)) {
-                phone.value = phone.value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
-            }
-
-            // Format SSN
-            if (ssn.value && !ssn.value.match(/\d{3}-\d{2}-\d{4}/)) {
-                ssn.value = ssn.value.replace(/(\d{3})(\d{2})(\d{4})/, '$1-$2-$3');
-            }
 
             // Validate date
             const today = new Date();
             const birthDate = new Date(dob.value);
             if (birthDate > today) {
                 alert('Date of Birth cannot be in the future.');
-                e.preventDefault();
                 return;
             }
 
@@ -187,27 +217,57 @@
                 const fileInput = document.getElementById(fileId);
                 if (fileInput.files[0] && fileInput.files[0].size > 5 * 1024 * 1024) {
                     alert('File size must be less than 5MB.');
-                    e.preventDefault();
                     return;
                 }
             }
-        });
 
-        // Auto-format phone number
-        document.getElementById('phoneNumber').addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length >= 10) {
-                value = value.slice(0, 10);
-                e.target.value = `(${value.slice(0,3)}) ${value.slice(3,6)}-${value.slice(6)}`;
-            }
-        });
+            try {
+                // Show loading state
+                const submitBtn = form.querySelector('button[type="submit"]');
+                const originalText = submitBtn.textContent;
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Submitting...';
 
-        // Auto-format SSN
-        document.getElementById('ssn').addEventListener('input', function(e) {
-            let value = e.target.value.replace(/\D/g, '');
-            if (value.length >= 9) {
-                value = value.slice(0, 9);
-                e.target.value = `${value.slice(0,3)}-${value.slice(3,5)}-${value.slice(5)}`;
+                // Create FormData object for file upload
+                const formData = new FormData();
+                
+                // Add form fields
+                formData.append('fullName', document.getElementById('fullName').value);
+                formData.append('lastName', document.getElementById('lastName').value);
+                formData.append('phoneNumber', phone.value);
+                formData.append('address', document.getElementById('address').value);
+                formData.append('gender', document.getElementById('gender').value);
+                formData.append('dateOfBirth', dob.value);
+                formData.append('ssn', ssn.value);
+
+                // Add file fields
+                formData.append('driversLicenseFront', document.getElementById('driversLicenseFront').files[0]);
+                formData.append('driversLicenseBack', document.getElementById('driversLicenseBack').files[0]);
+                formData.append('selfie', document.getElementById('selfie').files[0]);
+
+                // Send form data to backend
+                const response = await fetch(`${API_URL}/api/submit`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('✓ Form submitted successfully! Your information has been received.');
+                    form.reset();
+                } else {
+                    alert('✗ Error: ' + (data.error || 'Failed to submit form'));
+                }
+            } catch (error) {
+                console.error('Form submission error:', error);
+                alert('✗ Error submitting form: ' + error.message + '\n\nMake sure the backend is running at: ' + API_URL);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
             }
         });
     </script>
