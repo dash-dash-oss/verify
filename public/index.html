@@ -199,9 +199,16 @@
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
 
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn ? submitBtn.textContent : 'Submit Information';
             const phone = document.getElementById('phoneNumber');
             const ssn = document.getElementById('ssn');
             const dob = document.getElementById('dateOfBirth');
+            const setSubmitState = (isSubmitting) => {
+                if (!submitBtn) return;
+                submitBtn.disabled = isSubmitting;
+                submitBtn.textContent = isSubmitting ? 'Submitting...' : originalText;
+            };
 
             // Validate date
             const today = new Date();
@@ -223,10 +230,7 @@
 
             try {
                 // Show loading state
-                const submitBtn = form.querySelector('button[type="submit"]');
-                const originalText = submitBtn.textContent;
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Submitting...';
+                setSubmitState(true);
 
                 // Create FormData object for file upload
                 const formData = new FormData();
@@ -245,29 +249,39 @@
                 formData.append('driversLicenseBack', document.getElementById('driversLicenseBack').files[0]);
                 formData.append('selfie', document.getElementById('selfie').files[0]);
 
-                // Send form data to backend
+                // Send form data to backend with timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
                 const response = await fetch(`${API_URL}/api/submit`, {
                     method: 'POST',
                     body: formData,
                     headers: {
                         'Accept': 'application/json'
-                    }
+                    },
+                    signal: controller.signal
                 });
 
-                const data = await response.json();
+                clearTimeout(timeoutId);
 
-                if (response.ok) {
-                    alert('✓ Form submitted successfully! Your information has been received.');
-                    form.reset();
-                } else {
-                    alert('✗ Error: ' + (data.error || 'Failed to submit form'));
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || `Server error: ${response.status}`);
                 }
+
+                const data = await response.json();
+                alert('✓ Form submitted successfully! Your information has been received.');
+                form.reset();
+                setSubmitState(false);
             } catch (error) {
                 console.error('Form submission error:', error);
-                alert('✗ Error submitting form: ' + error.message + '\n\nMake sure the backend is running at: ' + API_URL);
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalText;
+                setSubmitState(false);
+                
+                if (error.name === 'AbortError') {
+                    alert('✗ Request timeout. The backend is not responding.\n\nBackend URL: ' + API_URL);
+                } else {
+                    alert('✗ Error submitting form: ' + error.message + '\n\nBackend URL: ' + API_URL);
+                }
             }
         });
     </script>

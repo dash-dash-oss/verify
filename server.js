@@ -9,6 +9,11 @@ import { fileURLToPath } from "url";
 dotenv.config();
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const normalizeOrigin = (value = "") => value.replace(/\/+$/, "");
+const allowedOrigins = (process.env.FRONTEND_URL || "http://localhost:3000")
+  .split(",")
+  .map((origin) => normalizeOrigin(origin.trim()))
+  .filter(Boolean);
 
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -16,7 +21,20 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // Middleware
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header, like health checks or server-to-server calls.
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      const normalizedOrigin = normalizeOrigin(origin);
+
+      if (allowedOrigins.includes(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
     credentials: true,
   })
 );
@@ -140,5 +158,6 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`✓ Server running on port ${PORT}`);
-  console.log(`✓ CORS enabled for: ${process.env.FRONTEND_URL || "http://localhost:3000"}`);
+  console.log(`✓ CORS enabled for: ${allowedOrigins.join(", ")}`);
 });
+
