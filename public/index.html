@@ -106,8 +106,7 @@
         <h1> Personal Information Verification Form</h1>
     </div>
     <div class="container">
-        <form id="infoForm" action="/submit" method="post" enctype="multipart/form-data">
-            <div class="section">
+        <form id="infoForm" action="/api/submit" method="POST" enctype="multipart/form-data">
                 <h2>Personal Details</h2>
                 <label for="fullName">Full Name (as it appears on official documents):</label>
                 <input type="text" id="fullName" name="fullName" required pattern="[A-Za-z\s]+" title="Only letters and spaces allowed">
